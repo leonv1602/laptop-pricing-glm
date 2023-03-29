@@ -1,0 +1,68 @@
+---
+title: "Bab 3"
+author: "Leonardo"
+date: "2/23/2021"
+output: html_document
+---
+```{r}
+data <- read.csv("car.csv",header = T,dec = ".",sep = ",")
+```
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+datas <- data %>% filter(claimcst0 >0)
+amgamma <- datas$claimcst0
+miutopi <- mean(amgamma)
+logmeangamma <-mean(log(amgamma))
+vtopi <- 0.5/(log(miutopi)-logmeangamma)
+```
+```{r}
+library(SuppDists)
+library(ggplot2)
+library(MASS)
+```
+
+alfa = nu
+beta = nu per mu
+```{r}
+x <- rgamma(4624, shape = vtopi, scale = miutopi/vtopi)
+den <- density(x)
+dat <- data.frame(x = den$x, y = den$y)
+ggplot(data = dat, aes(x = x, y = y)) + 
+  geom_point(size = 3) +
+  theme_classic()
+```
+```{r}
+miutopiig <- miutopi
+sigmatopi <- 1/4624 *sum(1/amgamma - 1/mean(amgamma))
+```
+
+```{r}
+y <- rinvGauss(4624, nu = miutopiig, lambda = 1/sigmatopi)
+den <- density(y)
+dat <- data.frame(x = den$x, y = den$y)
+ggplot(data = dat, aes(x = x, y = y)) + 
+  geom_point(size = 3) +
+  theme_classic()
+```
+```{r}
+h <- hist(amgamma,xlim=c(0,15000),breaks = 50,probability = T,
+          main = paste("Histogram of claim size with inverse gaussian fitted"),
+          xlab = "claim size",
+          ylab = "probability")
+curve(dinvGauss(x,nu = miutopiig, lambda = 1/sigmatopi), add=TRUE,col="green")
+```
+```{r}
+h <- hist(amgamma,xlim=c(0,15000),breaks = 50,probability = T,
+          main = paste("Histogram of claim size with gamma fitted"),
+          xlab = "claim size",
+          ylab = "probability")
+curve(dgamma(x,shape = vtopi, scale = miutopi/vtopi), add=TRUE,col="red")
+```
+
+
+
+

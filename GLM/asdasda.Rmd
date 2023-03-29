@@ -1,0 +1,270 @@
+---
+title: "Test"
+author: "Leonardo Valentino Kosasih - 10818015"
+date: "5/10/2021"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+```{r}
+library(readr)
+library(Metrics) # RMSE/RMSLE
+library(dplyr)
+library(ggplot2)
+library(dgof) #ks.test
+library(fitdistrplus) #MLE
+library(actuar)
+library(stringr)
+library(SuppDists)
+library(dplyr)
+library(splitstackshape)
+library(EnvStats)
+```
+# Cleaning
+```{r}
+data <- read_csv("laptop_price.csv")
+company <- c('Dell','Lenovo','HP','Asus','Acer', "Apple")
+data <- data %>% filter(Company %in% company)
+```
+## Cleanning Screen Resolution  
+```{r}
+data$ScreenType <- ''
+for (i in 1:nrow(data)){
+  vec <- str_split(data$ScreenResolution[i], ' ', simplify = TRUE)
+  n <- length(vec)
+  if (n > 2){
+    m <- n-1
+    temp <- vec[1,1]
+    for (j in 2:m){
+      temp <- paste(temp,vec[1,j])
+  }
+    data$ScreenType[i] <- temp
+    data$ScreenResolution[i] <- vec[1,n]
+  }
+  else if (n == 2){
+    data$ScreenType[i] <- vec[1,1]
+    data$ScreenResolution[i] <- vec[1,2]
+  }
+}
+data %>% count(ScreenResolution, sort = T)
+data %>% count(ScreenType, sort = T)
+```
+
+## Cleanning CPU Type
+```{r}
+data$Cpu_Type <- ''
+data$Cpu_Series <- ''
+data$Cpu_Speed <- ''
+for (i in 1:nrow(data)){
+  vec <- str_split(data$Cpu[i], ' ',simplify =TRUE)
+  n <- length(vec)
+  data$Cpu_Type[i] <- vec[1,1]
+  data$Cpu_Speed[i] <- vec[1,n]
+  n <- n-1
+  temp <- vec[1,2]
+  for (j in 3:n){
+    temp <- paste(temp,vec[1,j])
+  }
+  data$Cpu_Series[i] <- temp
+}
+```
+
+## Cleanning GPU Type
+```{r}
+data$Gpu_Type <- ''
+data$Gpu_Series <- ''
+for (i in 1:nrow(data)){
+  data$Gpu_Type[i] <- str_split(data$Gpu[i], ' ', n=2)[[1]][1]
+  data$Gpu_Series[i] <- str_split(data$Gpu[i], ' ', n=2)[[1]][2]
+}
+```
+## Cleanning Memory  
+```{r}
+data$Memory_1 <- ''
+data$Memory_2 <- ''
+for (i in 1:nrow(data)){
+  data$Memory_1[i] <- sub(' +', '',str_split(data$Memory, ' + ', n=2)[[i]][1],fixed=TRUE)
+  data$Memory_2[i] <- str_split(data$Memory, ' + ', n=2)[[i]][2]
+}
+data$Memory_2[is.na(data$Memory_2)] = 0
+data[which(data$Memory_1 =='1.0TB HDD'),]$Memory_1 = '1TB HDD'
+
+data$Memory_1_Type <- ''
+data$Memory_1_Size <- ''
+data$Memory_2_Type <- ''
+data$Memory_2_Size <- ''
+
+for (i in 1:nrow(data)){ 
+  data$Memory_1_Type[i] <- str_split(data$Memory_1[i],' ', 2, simplify= T)[1,2]
+  data$Memory_1_Size[i] <- str_split(data$Memory_1[i],' ', 2, simplify= T)[1,1]
+  
+  data$Memory_2_Type[i] <- str_split(data$Memory_2[i],' ', 2, simplify= T)[1,2]
+  data$Memory_2_Size[i] <- str_split(data$Memory_2[i],' ', 2, simplify= T)[1,1]
+}
+data[which(data$Memory_1 =='1.0TB HDD'),]$Memory_1 = '1TB HDD'
+
+data[which(data$Memory_1_Size =='1.0TB'),]$Memory_1_Size = '1TB'
+data[which(data$Memory_1_Size =='1TB'),]$Memory_1_Size = '1024GB'
+data[which(data$Memory_1_Size =='2TB'),]$Memory_1_Size = '2048GB'
+
+data[which(data$Memory_2_Size =='1.0TB'),]$Memory_2_Size = '1TB'
+data[which(data$Memory_2_Size =='1TB'),]$Memory_2_Size = '1024GB'
+data[which(data$Memory_2_Size =='2TB'),]$Memory_2_Size = '2048GB'
+
+data$Memory_1_Size <- sub('GB', "", data$Memory_1_Size,fixed = TRUE)
+data$Memory_1_Size <- as.numeric(data$Memory_1_Size)
+data$Memory_2_Size <- sub('GB', "", data$Memory_2_Size,fixed = TRUE)
+data$Memory_2_Size <- as.numeric(data$Memory_2_Size)
+```
+
+## Cleanning Ram 
+```{r}
+data$Ram <- as.numeric(sub('GB', "", data$Ram,fixed = TRUE))
+data$Cpu_Speed <- as.numeric(sub('GHz', '', data$Cpu_Speed, fixed=TRUE))
+```
+
+
+# Factoring
+```{r}
+data$Company <- factor(data$Company)
+data$Product <- factor(data$Product)
+data$TypeName <- factor(data$TypeName)
+data$ScreenType <- factor(data$ScreenType)
+data$ScreenResolution <- factor(data$ScreenResolution)
+data$ScreenType <- relevel(data$ScreenType, 'Full HD')
+data %>% count(ScreenType, sort = T)
+data$Memory <- factor(data$Memory)
+data$Gpu <- factor(data$Cpu)
+data$OpSys <- factor(data$OpSys)
+data$Memory_1 <- factor(data$Memory_1)
+data$Memory_2 <- factor(data$Memory_2)
+data$Gpu_Type <- factor(data$Gpu_Type)
+data$Gpu_Series <- factor(data$Gpu_Series)
+data$Weight <-as.numeric(str_remove(data$Weight,'kg'))
+```
+```{r}
+head(data$Weight)
+```
+
+
+## Relevelling
+```{r}
+data %>% count(Company, sort = TRUE)
+data$Company <- relevel(data$Company, 'Dell')
+```
+
+```{r}
+data %>% count(Product, sort = TRUE)
+data$Product <- relevel(data$Product, 'XPS 13')
+```
+
+```{r}
+data %>% count(TypeName, sort = TRUE)
+data$TypeName <- relevel(data$TypeName, 'Notebook')
+```
+
+```{r}
+data %>% count(ScreenResolution, sort = TRUE)
+data$ScreenResolution <- relevel(data$ScreenResolution, '1920x1080')
+```
+
+```{r}
+data %>% count(Gpu_Series, sort = TRUE)
+data$Gpu_Series <- relevel(data$Gpu_Series, 'HD Graphics 620')
+```
+```{r}
+data %>% count(OpSys, sort = TRUE)
+data$OpSys <- relevel(data$OpSys, 'Windows 10')
+```
+
+```{r}
+data %>% count(Gpu_Type, sort = TRUE)
+data$Gpu_Type <- relevel(factor(data$Gpu_Type), 'Intel')
+```
+
+```{r}
+data %>% count(Gpu_Series, sort = TRUE)
+data$Gpu_Series <- relevel(factor(data$Gpu_Series), 'HD Graphics 620')
+```
+```{r}
+data %>% count(Cpu_Type, sort = TRUE)
+data$Cpu_Type <- relevel(factor(data$Cpu_Type), 'Intel')
+```
+
+```{r}
+data %>% count(Cpu_Series, sort = TRUE)
+data$Cpu_Series <- relevel(factor(data$Cpu_Series), 'Core i5 7200U')
+```
+```{r}
+#data %>% count(Cpu_Speed, sort = TRUE)
+#data$Cpu_Speed <- relevel(factor(data$Cpu_Speed), '2.5GHz')
+```
+
+```{r}
+data %>% count(Memory_1_Type, sort = TRUE)
+data$Memory_1_Type <- relevel(factor(data$Memory_1_Type), 'SSD')
+```
+
+```{r}
+data %>% count(Memory_2_Type, sort = TRUE)
+data$Memory_2_Type <- relevel(factor(data$Memory_2_Type), '')
+```
+
+
+
+```{r}
+summary(fitdist(data$Price_euros,"gamma"))
+
+h = hist(data$Price_euros,probability = T,main = paste("Harga Laptop dengan Distribusi Gamma"),col="cadetblue3",xlab = "Price_euros",ylab = "Peluang")
+curve(dgamma(x,shape = 2.928053153 ,rate = 0.002717365),add=TRUE,lwd=2,col="red")
+```
+
+# EDA
+```{r}
+set.seed(10818015)
+ks.test(data$Price_euros,rgamma(nrow(data),shape = 2.928053153,rate = 0.002717365),alternative = "two.sided",exact = TRUE)
+```
+```{r}
+set.seed(181815)
+temp <- stratified(data, group =25, size = 0.8, bothSets = T)
+train <- as.data.frame(temp$SAMP1)
+test <- as.data.frame(temp$SAMP2)
+```
+
+```{r}
+model2 =step(glm(Price_euros ~ Company+TypeName+Inches+ScreenResolution+Cpu_Type+Ram+Memory_1_Size+
+                   Memory_1_Type+Gpu_Type+ OpSys+Company*OpSys+Company*TypeName ,
+                 family = Gamma(link ="log"),
+                data=train),direction ="both",trace = F)
+model2inv =step(glm(Price_euros ~ Company+TypeName+Inches+ScreenResolution+Cpu_Type+Ram+Memory_1_Size+
+                   Memory_1_Type+Gpu_Type+ OpSys+Company*OpSys+Company*TypeName ,
+                 family = inverse.gaussian(link ="log"),
+                data=train),direction ="both",trace = F)
+#summary(model2)
+```
+```{r}
+#summary(aov(model2))
+```
+```{r}
+#confint(model2)
+```
+
+```{r}
+#summary(model2inv)
+```
+
+```{r}
+#summary(aov(model2inv))
+```
+```{r}
+#confint(model2inv)
+```
+```{r}
+y_hat <- exp(predict(model2inv,train))
+mape(train$Price_euros, y_hat)
+```
+```{r}
+residual <- data.frame(1:921,model2$residuals,model2inv$residuals)
+```
+
